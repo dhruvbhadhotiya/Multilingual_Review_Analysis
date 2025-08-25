@@ -19,7 +19,7 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # Model configuration
-DEFAULT_MODEL = 'gemini-pro'
+DEFAULT_MODEL = 'gemini-2.0-flash'
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 1000
 DEFAULT_TOP_P = 0.9
