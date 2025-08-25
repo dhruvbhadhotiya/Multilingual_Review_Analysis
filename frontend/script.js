@@ -13,12 +13,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const pageInfo = document.getElementById('pageInfo');
     const exportBtn = document.getElementById('exportBtn');
     
+    // DOM Elements for Manual Input
+    const fileUploadTab = document.getElementById('fileUploadTab');
+    const textInputTab = document.getElementById('textInputTab');
+    const fileUploadContent = document.getElementById('fileUploadContent');
+    const textInputContent = document.getElementById('textInputContent');
+    const manualReviewInput = document.getElementById('manualReviewInput');
+    const manualLanguage = document.getElementById('manualLanguage');
+    const manualRating = document.getElementById('manualRating');
+    
     // State
     let currentFile = null;
     let analysisResults = null;
+    let summaryData = null; // Store summary data from backend
     let currentPage = 1;
     const itemsPerPage = 10;
     let filteredResults = [];
+    let currentInputMethod = 'file'; // 'file' or 'manual'
     
     // Initialize charts
     let sentimentChart = null;
@@ -75,6 +86,20 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (exportBtn) {
             exportBtn.addEventListener('click', exportResults);
+        }
+        
+        // Method switching tabs
+        if (fileUploadTab) {
+            fileUploadTab.addEventListener('click', () => switchInputMethod('file'));
+        }
+        
+        if (textInputTab) {
+            textInputTab.addEventListener('click', () => switchInputMethod('manual'));
+        }
+        
+        // Manual input validation
+        if (manualReviewInput) {
+            manualReviewInput.addEventListener('input', validateManualInput);
         }
     }
     
@@ -165,12 +190,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // Input Method Functions
+    function switchInputMethod(method) {
+        currentInputMethod = method;
+        
+        // Update tab appearance
+        if (fileUploadTab && textInputTab) {
+            fileUploadTab.classList.toggle('active', method === 'file');
+            textInputTab.classList.toggle('active', method === 'manual');
+        }
+        
+        // Update content visibility
+        if (fileUploadContent && textInputContent) {
+            fileUploadContent.classList.toggle('active', method === 'file');
+            textInputContent.classList.toggle('active', method === 'manual');
+        }
+        
+        // Update analyze button state
+        updateAnalyzeButtonState();
+    }
+    
+    function validateManualInput() {
+        updateAnalyzeButtonState();
+    }
+    
+    function updateAnalyzeButtonState() {
+        if (!analyzeBtn) return;
+        
+        if (currentInputMethod === 'file') {
+            analyzeBtn.disabled = !currentFile;
+        } else {
+            const hasText = manualReviewInput && manualReviewInput.value.trim().length > 0;
+            analyzeBtn.disabled = !hasText;
+        }
+    }
+
     // Main Analysis Function
     async function analyzeReviews() {
-        if (!currentFile) {
-            showError('Please select a file first');
-            return;
+        if (currentInputMethod === 'file') {
+            if (!currentFile) {
+                showError('Please select a file first');
+                return;
+            }
+            return analyzeFileReviews();
+        } else {
+            if (!manualReviewInput || !manualReviewInput.value.trim()) {
+                showError('Please enter a review to analyze');
+                return;
+            }
+            return analyzeManualReview();
         }
+    }
+    
+    async function analyzeFileReviews() {
         
         showLoading('Uploading file...');
         
@@ -183,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Create AbortController for timeout
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+            const timeoutId = setTimeout(() => controller.abort(), 900000); // 15 minute timeout
             
             updateLoading('Processing file (this may take a few moments for large files)...');
             
@@ -215,6 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error || 'Failed to analyze reviews');
             }
             
+            // Store summary data from backend
+            summaryData = data.summary || {};
+            
             // Transform backend response to frontend format
             analysisResults = data.analysis_results.map(result => ({
                 id: `review-${result.chunk_id + 1}`,
@@ -227,8 +302,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 confidence: result.confidence,
                 detectedLanguage: result.detected_language,
                 wasTranslated: result.was_translated,
-                rating: null, // Backend doesn't provide ratings for plain text
-                date: new Date().toISOString().split('T')[0],
+                rating: result.rating || null,
+                date: result.date || new Date().toISOString().split('T')[0],
                 topics: result.topics || result.advanced_analysis?.topics || [],
                 keyPhrases: result.key_phrases || result.advanced_analysis?.key_phrases || []
             }));
@@ -262,6 +337,64 @@ document.addEventListener('DOMContentLoaded', () => {
             showError(errorMessage);
         } finally {
             // Reset UI state
+            analyzeBtn.disabled = false;
+            analyzeBtn.textContent = 'Analyze Reviews';
+        }
+    }
+    
+    async function analyzeManualReview() {
+        const reviewText = manualReviewInput.value.trim();
+        const language = manualLanguage.value || 'auto';
+        const rating = manualRating.value ? parseFloat(manualRating.value) : null;
+        
+        showLoading('Analyzing review...');
+        
+        try {
+            const response = await fetch('api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: reviewText,
+                    language: language
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to analyze review');
+            }
+            
+            // Transform single review response to match expected format
+            analysisResults = [{
+                id: 'manual-review-1',
+                text: reviewText,
+                processedText: data.text || reviewText,
+                sentiment: data.sentiment,
+                sentimentScore: data.score || 0.5,
+                polarity: data.analysis?.polarity || 0,
+                subjectivity: data.analysis?.subjectivity || 0,
+                confidence: data.analysis?.confidence || 0.5,
+                detectedLanguage: data.language || language,
+                wasTranslated: data.language !== 'en' && data.language !== language,
+                rating: rating,
+                date: new Date().toISOString().split('T')[0],
+                topics: data.analysis?.topics || [],
+                keyPhrases: data.analysis?.key_phrases || []
+            }];
+            
+            filteredResults = [...analysisResults];
+            
+            // Update UI with results
+            updateResultsUI();
+            
+        } catch (error) {
+            console.error('Error analyzing manual review:', error);
+            hideLoading();
+            showError('Failed to analyze review. ' + error.message);
+        } finally {
             analyzeBtn.disabled = false;
             analyzeBtn.textContent = 'Analyze Reviews';
         }
@@ -359,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Update insights
-        updateInsights(analysisResults, sentimentCounts);
+        updateInsights(analysisResults, sentimentCounts, summaryData);
     }
     
     function updateCharts() {
@@ -513,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!filteredResults || filteredResults.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td colspan="5" class="text-center">No reviews found</td>`;
+            tr.innerHTML = `<td colspan="7" class="text-center">No reviews found</td>`;
             tbody.appendChild(tr);
             return;
         }
@@ -531,9 +664,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const tr = document.createElement('tr');
             
             // Limit review text length for display
-            const reviewText = review.text.length > 100 
-                ? review.text.substring(0, 100) + '...' 
+            const originalText = review.text.length > 80 
+                ? review.text.substring(0, 80) + '...' 
                 : review.text;
+                
+            const translatedText = review.wasTranslated 
+                ? (review.processedText.length > 80 
+                    ? review.processedText.substring(0, 80) + '...' 
+                    : review.processedText)
+                : '-';
+            
+            // Format language
+            const languageDisplay = review.detectedLanguage 
+                ? review.detectedLanguage.toUpperCase() 
+                : 'Unknown';
             
             // Format topics
             const topics = Array.isArray(review.topics) 
@@ -546,7 +690,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 : 'N/A';
             
             tr.innerHTML = `
-                <td>${reviewText}</td>
+                <td title="${review.text}">${originalText}</td>
+                <td title="${review.processedText || ''}">${translatedText}</td>
+                <td><span class="language-badge">${languageDisplay}</span></td>
                 <td><span class="sentiment-badge ${review.sentiment?.toLowerCase() || 'neutral'}">
                     ${review.sentiment || 'Neutral'}
                 </span></td>
@@ -561,24 +707,53 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateTopicCloud() {
         const topicCloud = document.getElementById('topicCloud');
+        const topicDetails = document.getElementById('topicDetails');
         if (!topicCloud) return;
         
         topicCloud.innerHTML = '';
+        if (topicDetails) topicDetails.innerHTML = '';
         
-        if (!analysisResults || analysisResults.length === 0) return;
+        if (!analysisResults || analysisResults.length === 0) {
+            if (topicDetails) {
+                topicDetails.innerHTML = '<p>No topics available. Upload and analyze reviews to see topic analysis.</p>';
+            }
+            return;
+        }
         
-        // Extract all topics from reviews
-        const topicMap = new Map();
+        // Use AI-generated topics from summary if available, otherwise extract from reviews
+        let topicMap = new Map();
+        let aiTopics = [];
         
+        if (summaryData && summaryData.ollama_insights) {
+            const aiInsights = summaryData.ollama_insights;
+            
+            // Add AI-generated themes as high-priority topics
+            if (aiInsights.key_themes && Array.isArray(aiInsights.key_themes)) {
+                aiTopics = aiInsights.key_themes;
+                aiInsights.key_themes.forEach(theme => {
+                    topicMap.set(theme.toLowerCase().trim(), 10); // Give AI topics higher weight
+                });
+            }
+            
+            // Add frequent phrases as topics
+            if (aiInsights.frequent_phrases && Array.isArray(aiInsights.frequent_phrases)) {
+                aiInsights.frequent_phrases.forEach(phrase => {
+                    const normalizedPhrase = phrase.toLowerCase().trim();
+                    if (normalizedPhrase && !topicMap.has(normalizedPhrase)) {
+                        topicMap.set(normalizedPhrase, 8); // Medium weight for frequent phrases
+                    }
+                });
+            }
+        }
+        
+        // Add topics from individual review analysis
         analysisResults.forEach(review => {
             if (Array.isArray(review.topics)) {
                 review.topics.forEach(topic => {
                     const normalizedTopic = topic.toLowerCase().trim();
                     if (normalizedTopic) {
-                        topicMap.set(
-                            normalizedTopic, 
-                            (topicMap.get(normalizedTopic) || 0) + 1
-                        );
+                        const currentCount = topicMap.get(normalizedTopic) || 0;
+                        topicMap.set(normalizedTopic, currentCount + 1);
                     }
                 });
             }
@@ -587,7 +762,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Convert to array and sort by frequency
         const sortedTopics = Array.from(topicMap.entries())
             .sort((a, b) => b[1] - a[1])
-            .slice(0, 20); // Top 20 topics
+            .slice(0, 30); // Top 30 topics
+        
+        if (sortedTopics.length === 0) {
+            if (topicDetails) {
+                topicDetails.innerHTML = '<p>No specific topics identified in the reviews.</p>';
+            }
+            return;
+        }
         
         // Find min and max for scaling
         const counts = sortedTopics.map(([_, count]) => count);
@@ -595,16 +777,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const maxCount = Math.max(...counts);
         
         // Generate topic cloud
-        sortedTopics.forEach(([topic, count]) => {
-            // Scale font size based on frequency (between 12px and 32px)
+        sortedTopics.forEach(([topic, count], index) => {
+            // Scale font size based on frequency (between 12px and 36px)
             const scale = (count - minCount) / (maxCount - minCount || 1);
-            const fontSize = 12 + (scale * 20);
+            const fontSize = 12 + (scale * 24);
             
             const topicElement = document.createElement('span');
             topicElement.className = 'topic-tag';
+            
+            // Highlight AI-generated themes
+            if (aiTopics.includes(topic) || aiTopics.some(aiTopic => aiTopic.toLowerCase() === topic)) {
+                topicElement.classList.add('ai-topic');
+            }
+            
             topicElement.style.fontSize = `${fontSize}px`;
             topicElement.textContent = topic;
-            topicElement.title = `${count} mentions`;
+            topicElement.title = `${count} mentions${aiTopics.includes(topic) ? ' (AI identified theme)' : ''}`;
             
             // Add click handler to filter by topic
             topicElement.addEventListener('click', () => {
@@ -613,9 +801,69 @@ document.addEventListener('DOMContentLoaded', () => {
             
             topicCloud.appendChild(topicElement);
         });
+        
+        // Update topic details section
+        if (topicDetails) {
+            let detailsHTML = '<h4>Topic Analysis Summary</h4>';
+            
+            if (aiTopics.length > 0) {
+                detailsHTML += `
+                    <div class="topic-section">
+                        <h5><i class="fas fa-robot"></i> AI-Identified Key Themes</h5>
+                        <div class="ai-topics">
+                            ${aiTopics.map(theme => `<span class="topic-tag ai-topic">${theme}</span>`).join(' ')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            detailsHTML += `
+                <div class="topic-section">
+                    <h5>Most Frequent Topics (Top 10)</h5>
+                    <div class="topic-list">
+            `;
+            
+            sortedTopics.slice(0, 10).forEach(([topic, count], index) => {
+                const percentage = Math.round((count / analysisResults.length) * 100);
+                detailsHTML += `
+                    <div class="topic-item" onclick="filterByTopic('${topic}')">
+                        <span class="topic-name">${index + 1}. ${topic}</span>
+                        <span class="topic-count">${count} mentions (${percentage}%)</span>
+                    </div>
+                `;
+            });
+            
+            detailsHTML += '</div></div>';
+            
+            if (summaryData && summaryData.ollama_insights && summaryData.ollama_insights.praise_points) {
+                detailsHTML += `
+                    <div class="topic-section">
+                        <h5><i class="fas fa-thumbs-up"></i> Common Praise Points</h5>
+                        <ul class="insight-list">
+                            ${summaryData.ollama_insights.praise_points.map(point => `<li>${point}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            if (summaryData && summaryData.ollama_insights && summaryData.ollama_insights.complaints) {
+                detailsHTML += `
+                    <div class="topic-section">
+                        <h5><i class="fas fa-thumbs-down"></i> Common Complaints</h5>
+                        <ul class="insight-list">
+                            ${summaryData.ollama_insights.complaints.map(complaint => `<li>${complaint}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            detailsHTML += '<p class="topic-help">💡 Click on any topic above to filter reviews by that topic.</p>';
+            
+            topicDetails.innerHTML = detailsHTML;
+        }
     }
     
-    function updateInsights(reviews, sentimentCounts) {
+    function updateInsights(reviews, sentimentCounts, summary) {
         const insightsContainer = document.getElementById('insights-content');
         if (!insightsContainer) return;
         
@@ -624,44 +872,114 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Calculate some basic insights
+        let insightsHTML = '';
+        
+        // Add AI Analysis section if available
+        if (summary && summary.ollama_insights) {
+            const aiInsights = summary.ollama_insights;
+            insightsHTML += `
+                <div class="ai-insights-section">
+                    <h4 class="ai-analysis-header"><i class="fas fa-robot"></i> AI Analysis Results</h4>
+            `;
+            
+            if (aiInsights.overall_sentiment) {
+                insightsHTML += `
+                    <div class="insight ai-insight">
+                        <p><strong>Overall Sentiment:</strong> ${aiInsights.overall_sentiment} 
+                        ${aiInsights.sentiment_confidence ? `(${Math.round(aiInsights.sentiment_confidence * 100)}% confidence)` : ''}</p>
+                    </div>
+                `;
+            }
+            
+            if (aiInsights.key_themes && Array.isArray(aiInsights.key_themes)) {
+                insightsHTML += `
+                    <div class="insight ai-insight">
+                        <p><strong>Key Themes:</strong> ${aiInsights.key_themes.join(', ')}</p>
+                    </div>
+                `;
+            }
+            
+            if (aiInsights.praise_points && Array.isArray(aiInsights.praise_points)) {
+                insightsHTML += `
+                    <div class="insight ai-insight">
+                        <p><strong>Common Praise:</strong> ${aiInsights.praise_points.join(', ')}</p>
+                    </div>
+                `;
+            }
+            
+            if (aiInsights.complaints && Array.isArray(aiInsights.complaints)) {
+                insightsHTML += `
+                    <div class="insight ai-insight">
+                        <p><strong>Common Complaints:</strong> ${aiInsights.complaints.join(', ')}</p>
+                    </div>
+                `;
+            }
+            
+            if (aiInsights.key_insights && Array.isArray(aiInsights.key_insights)) {
+                aiInsights.key_insights.slice(0, 3).forEach(insight => {
+                    insightsHTML += `
+                        <div class="insight ai-insight">
+                            <p>• ${insight}</p>
+                        </div>
+                    `;
+                });
+            }
+            
+            if (aiInsights.recommendation) {
+                insightsHTML += `
+                    <div class="insight ai-insight recommendation">
+                        <p><strong>Recommendation:</strong> ${aiInsights.recommendation}</p>
+                    </div>
+                `;
+            }
+            
+            insightsHTML += '</div><hr style="margin: 20px 0; border-color: #e0e0e0;">';
+        }
+        
+        // Add basic statistical insights
         const totalReviews = reviews.length;
         const positivePercentage = Math.round((sentimentCounts.positive / totalReviews) * 100) || 0;
         const negativePercentage = Math.round((sentimentCounts.negative / totalReviews) * 100) || 0;
         const neutralPercentage = Math.round((sentimentCounts.neutral / totalReviews) * 100) || 0;
         
-        // Find most common topics (simplified)
-        const topicMap = new Map();
-        reviews.forEach(review => {
-            if (Array.isArray(review.topics)) {
-                review.topics.forEach(topic => {
-                    const normalizedTopic = topic.toLowerCase().trim();
-                    if (normalizedTopic) {
-                        topicMap.set(
-                            normalizedTopic, 
-                            (topicMap.get(normalizedTopic) || 0) + 1
-                        );
-                    }
-                });
-            }
-        });
-        
-        const sortedTopics = Array.from(topicMap.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([topic]) => topic);
-        
-        // Generate insights HTML
-        let insightsHTML = `
+        insightsHTML += '<h4 class="basic-insights-header">Statistical Summary</h4>';
+        insightsHTML += `
             <div class="insight">
                 <p>• <strong>${positivePercentage}%</strong> of reviews are positive, while <strong>${negativePercentage}%</strong> are negative.</p>
             </div>
         `;
         
-        if (sortedTopics.length > 0) {
+        // Find most common topics from summary or calculate from reviews
+        let topicsList = [];
+        if (summary && summary.common_topics && Array.isArray(summary.common_topics)) {
+            topicsList = summary.common_topics.slice(0, 5);
+        } else {
+            // Fallback: calculate from reviews
+            const topicMap = new Map();
+            reviews.forEach(review => {
+                if (Array.isArray(review.topics)) {
+                    review.topics.forEach(topic => {
+                        const normalizedTopic = topic.toLowerCase().trim();
+                        if (normalizedTopic) {
+                            topicMap.set(
+                                normalizedTopic, 
+                                (topicMap.get(normalizedTopic) || 0) + 1
+                            );
+                        }
+                    });
+                }
+            });
+            
+            topicsList = Array.from(topicMap.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([topic]) => topic);
+        }
+        
+        if (topicsList.length > 0) {
             insightsHTML += `
                 <div class="insight">
-                    <p>• The most discussed topics are: <strong>${sortedTopics.join(', ')}</strong>.</p>
+                    <p>• The most discussed topics are: <strong>${topicsList.join(', ')}</strong>.</p>
                 </div>
             `;
         }
@@ -673,6 +991,23 @@ document.addEventListener('DOMContentLoaded', () => {
             insightsHTML += `
                 <div class="insight">
                     <p>• The average rating is <strong>${avgRating} out of 5</strong>.</p>
+                </div>
+            `;
+        }
+        
+        // Add language insights if available
+        if (summary && summary.languages_detected && Array.isArray(summary.languages_detected) && summary.languages_detected.length > 1) {
+            insightsHTML += `
+                <div class="insight">
+                    <p>• Languages detected: <strong>${summary.languages_detected.join(', ')}</strong></p>
+                </div>
+            `;
+        }
+        
+        if (summary && summary.translations_performed > 0) {
+            insightsHTML += `
+                <div class="insight">
+                    <p>• Performed <strong>${summary.translations_performed} translations</strong> to English for analysis</p>
                 </div>
             `;
         }
@@ -797,7 +1132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Convert to CSV
-        const headers = ['ID', 'Text', 'Sentiment', 'Sentiment Score', 'Rating', 'Date', 'Topics', 'Key Phrases'];
+        const headers = ['ID', 'Original Text', 'Translated Text', 'Language', 'Sentiment', 'Sentiment Score', 'Rating', 'Date', 'Topics', 'Key Phrases'];
         
         const csvContent = [
             headers.join(','),
@@ -805,6 +1140,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return [
                     `"${review.id}"`,
                     `"${review.text.replace(/"/g, '""')}"`,
+                    `"${review.processedText ? review.processedText.replace(/"/g, '""') : ''}"`,
+                    `"${review.detectedLanguage || ''}"`,
                     `"${review.sentiment || ''}"`,
                     review.sentimentScore || '',
                     review.rating || '',

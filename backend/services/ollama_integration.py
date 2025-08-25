@@ -2,7 +2,7 @@ import os
 import logging
 import json
 from typing import Dict, Any, Optional, List, Union
-import google.generativeai as genai
+from ollama import Client
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -11,15 +11,14 @@ load_dotenv()
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Initialize Gemini API - try both possible environment variable names
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
-if not GEMINI_API_KEY:
-    logger.warning("GEMINI_API_KEY or GOOGLE_API_KEY not found in environment variables. Some features may not work.")
-else:
-    genai.configure(api_key=GEMINI_API_KEY)
+# Initialize Ollama client with the provided configuration
+OLLAMA_CLIENT = Client(
+    host="https://ollama.com",
+    headers={'Authorization': '843da26fdc2545c5b01aa2e094f83699.vMZEWzSM4bI4AFhVinBVAJTu'}
+)
 
 # Model configuration
-DEFAULT_MODEL = 'gemini-2.0-flash'
+DEFAULT_MODEL = 'gpt-oss:120b'
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 1000
 DEFAULT_TOP_P = 0.9
@@ -63,10 +62,36 @@ ANALYSIS_PROMPTS = {
     Focus on the main points, important details, and overall message.
     
     Text: {text}
+    """,
+    
+    'summary_analysis': """
+    Analyze the following collection of reviews and provide comprehensive insights in JSON format.
+    Include the following analysis:
+    
+    1. Overall sentiment summary
+    2. Key themes and topics mentioned
+    3. Common praise points
+    4. Common complaints
+    5. Actionable insights for improvement
+    6. Key phrases that appear frequently
+    
+    Please respond in JSON format with the following structure:
+    {{
+        "overall_sentiment": "positive/negative/mixed",
+        "sentiment_confidence": 0.8,
+        "key_themes": ["theme1", "theme2", "theme3"],
+        "praise_points": ["point1", "point2"],
+        "complaints": ["complaint1", "complaint2"],
+        "key_insights": ["insight1", "insight2", "insight3"],
+        "frequent_phrases": ["phrase1", "phrase2"],
+        "recommendation": "Brief recommendation based on the analysis"
+    }}
+    
+    Reviews: {text}
     """
 }
 
-def analyze_with_gemini(
+def analyze_with_ollama(
     text: str,
     analysis_type: str = 'sentiment',
     model: str = DEFAULT_MODEL,
@@ -79,12 +104,12 @@ def analyze_with_gemini(
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Analyze text using Google's Gemini model.
+    Analyze text using Ollama's gpt-oss:120B model.
     
     Args:
         text: The text to analyze
         analysis_type: Type of analysis to perform (sentiment, topic, review_analysis, summary)
-        model: Gemini model to use
+        model: Ollama model to use
         temperature: Controls randomness (0 to 1)
         max_tokens: Maximum number of tokens to generate
         top_p: Nucleus sampling parameter
@@ -95,9 +120,6 @@ def analyze_with_gemini(
     Returns:
         Dict containing analysis results
     """
-    if not GEMINI_API_KEY:
-        return {"error": "Gemini API key not configured"}
-    
     try:
         # Get the appropriate prompt for the analysis type
         prompt_template = ANALYSIS_PROMPTS.get(analysis_type, ANALYSIS_PROMPTS['sentiment'])
@@ -114,29 +136,41 @@ def analyze_with_gemini(
         # Format the prompt with the actual text
         formatted_prompt = prompt.format(text=text)
         
-        # Initialize the model
-        model = genai.GenerativeModel(model)
+        logger.info(f"Making Ollama API request for analysis_type: {analysis_type}")
         
-        # Generate the response
-        response = model.generate_content(
-            formatted_prompt,
-            generation_config={
+        # Generate the response using Ollama client
+        response = OLLAMA_CLIENT.chat(
+            model=model,
+            messages=[
+                {
+                    'role': 'user',
+                    'content': formatted_prompt
+                }
+            ],
+            options={
                 'temperature': min(max(temperature, 0), 1),
-                'max_output_tokens': max_tokens,
+                'num_predict': max_tokens,
                 'top_p': top_p,
                 'top_k': top_k,
-            },
-            **kwargs
+            }
         )
         
         # Process the response
-        if not response.text:
-            return {"error": "No response from Gemini API"}
+        if not response or 'message' not in response or 'content' not in response['message']:
+            logger.error(f"Invalid response from Ollama API: {response}")
+            return {"error": "No response from Ollama API"}
+        
+        response_text = response['message']['content']
+        
+        if not response_text:
+            return {"error": "Empty response from Ollama API"}
+        
+        logger.info(f"Ollama API response received for {analysis_type}")
         
         # For structured responses, try to parse as JSON
         try:
             # First, clean the response text to handle markdown code blocks
-            response_text = response.text.strip()
+            response_text = response_text.strip()
             if '```json' in response_text:
                 # Extract JSON from markdown code block
                 json_str = response_text.split('```json')[1].split('```')[0].strip()
@@ -154,7 +188,7 @@ def analyze_with_gemini(
             return {"analysis": response_text}
             
     except Exception as e:
-        logger.error(f"Error in Gemini API call: {str(e)}", exc_info=True)
+        logger.error(f"Error in Ollama API call: {str(e)}", exc_info=True)
         return {"error": f"Failed to analyze text: {str(e)}"}
 
 def batch_analyze_texts(
@@ -168,7 +202,7 @@ def batch_analyze_texts(
     Args:
         texts: List of texts to analyze
         analysis_type: Type of analysis to perform
-        **kwargs: Additional arguments to pass to analyze_with_gemini
+        **kwargs: Additional arguments to pass to analyze_with_ollama
         
     Returns:
         List of analysis results
@@ -178,7 +212,7 @@ def batch_analyze_texts(
     
     for i, text in enumerate(texts):
         try:
-            result = analyze_with_gemini(
+            result = analyze_with_ollama(
                 text=text,
                 analysis_type=analysis_type,
                 chunk_index=i,
@@ -200,6 +234,9 @@ def analyze_topics_batch(texts: List[str], **kwargs) -> List[Dict[str, Any]]:
     """Convenience function for batch topic analysis."""
     return batch_analyze_texts(texts, analysis_type='topic', **kwargs)
 
+# Backward compatibility - alias the main function to match Gemini naming
+analyze_with_gemini = analyze_with_ollama
+
 # Example usage
 if __name__ == "__main__":
     # Test sentiment analysis
@@ -209,11 +246,11 @@ if __name__ == "__main__":
     could be better and the price is a bit high for what you get.
     """
     
-    print("Testing sentiment analysis:")
-    result = analyze_with_gemini(test_text, analysis_type='sentiment')
+    print("Testing sentiment analysis with Ollama:")
+    result = analyze_with_ollama(test_text, analysis_type='sentiment')
     print(json.dumps(result, indent=2))
     
     # Test topic analysis
-    print("\nTesting topic analysis:")
-    result = analyze_with_gemini(test_text, analysis_type='topic')
+    print("\nTesting topic analysis with Ollama:")
+    result = analyze_with_ollama(test_text, analysis_type='topic')
     print(json.dumps(result, indent=2))

@@ -1,203 +1,283 @@
-# 🤖 Multilingual Sentiment Analysis & Translation App
+# Multilingual Review Analysis Platform
 
-A Flask-based web application that provides AI-powered sentiment analysis and translation services using Google's Gemini API.
+A comprehensive web application for analyzing multilingual customer reviews using AI-powered sentiment analysis and topic modeling. Built with Flask backend and vanilla JavaScript frontend, featuring Ollama AI integration for advanced text analysis.
 
-## ✨ Features
+## 🌟 Features
 
-- **Sentiment Analysis**: Analyze text sentiment in multiple languages
-- **Translation**: Translate text between different languages using AI
-- **File Upload**: Batch process CSV/TXT files for sentiment analysis
-- **Real-time Analysis**: Get instant results with detailed insights
-- **Modern UI**: Clean, responsive web interface
+### Core Functionality
+- **Multilingual Support**: Automatic language detection and translation
+- **AI-Powered Analysis**: Advanced sentiment analysis using Ollama's gpt-oss:120b model
+- **Topic Extraction**: AI-identified themes and frequent phrases
+- **File Processing**: Support for CSV and TXT files with chunking for large datasets
+- **Interactive Dashboard**: Real-time charts and visualizations
+- **Export Capabilities**: Download analysis results as CSV
+
+### AI Analysis Features
+- Overall sentiment classification with confidence scores
+- Key theme identification
+- Praise points and complaint categorization
+- Actionable insights and recommendations
+- Topic cloud with frequency analysis
+- Sentiment trends over time
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-
 - Python 3.8 or higher
-- Google AI API key (get from https://ai.google.dev/)
+- pip package manager
+- Ollama API access with valid authentication token
 
 ### Installation
 
-1. **Clone or download the project**
+1. **Clone the repository**:
    ```bash
-   cd dhruvwithgrok
+   git clone <repository-url>
+   cd Project_D7
    ```
 
-2. **Create a virtual environment**
+2. **Create virtual environment**:
    ```bash
-   python -m venv venv
-   
-   # On Windows:
-   venv\Scripts\activate
-   
-   # On macOS/Linux:
-   source venv/bin/activate
+   python -m venv env
+   source env/bin/activate  # On Windows: env\Scripts\activate
    ```
 
-3. **Install dependencies**
+3. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Set up environment variables**
+4. **Run the application**:
    ```bash
-   # Copy the example environment file
-   cp env.example .env
-   
-   # Edit the .env file and add your Google AI API key:
-   GOOGLE_API_KEY=your-actual-api-key-here
+   python backend/app.py
    ```
 
-5. **Run the application**
-   ```bash
-   cd backend
-   python app.py
-   ```
-
-6. **Open your browser**
-   - Navigate to: http://localhost:3000
-   - Or try the simple interface: http://localhost:3000/simple.html
-
-## 📋 How to Get Google AI API Key
-
-1. Go to https://ai.google.dev/
-2. Click "Get API key"
-3. Sign in with your Google account
-4. Create a new API key
-5. Copy the key and add it to your `.env` file
-
-## 🖥️ Usage
-
-### Simple Text Analysis
-
-1. Open http://localhost:3000/simple.html
-2. Enter text in the text area
-3. Click "Analyze Sentiment" for sentiment analysis
-4. Or select a target language and click "Translate & Analyze"
-
-### File Upload (Advanced)
-
-1. Open http://localhost:3000
-2. Upload a CSV or TXT file
-3. The app will process each line/row and provide detailed analysis
-4. View results in different tabs (Overview, Sentiment, Topics, Raw Data)
-
-### API Endpoints
-
-The app provides RESTful API endpoints:
-
-- `GET /api/health` - Health check
-- `POST /api/analyze` - Analyze text sentiment
-- `POST /api/translate` - Translate text
-- `POST /api/upload` - Upload and process files
-
-### Example API Usage
-
-**Analyze Sentiment:**
-```bash
-curl -X POST http://localhost:3000/api/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"text": "I love this product!"}'
-```
-
-**Translate Text:**
-```bash
-curl -X POST http://localhost:3000/api/translate \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Hola mundo", "target_lang": "en"}'
-```
+5. **Open your browser** to `http://localhost:3000`
 
 ## 📁 Project Structure
 
 ```
-dhruvwithgrok/
-├── backend/                 # Backend Flask application
-│   ├── app.py              # Main application file
-│   ├── services/           # AI services
-│   │   ├── sentiment.py    # Sentiment analysis
-│   │   ├── language.py     # Language detection
-│   │   ├── translation.py  # Translation service
-│   │   ├── chunking.py     # Text processing
-│   │   └── gemini_integration.py # Gemini AI integration
-│   └── uploads/            # File upload directory
-├── frontend/               # Frontend files
-│   ├── index.html         # Main interface
-│   ├── simple.html        # Simple interface
-│   ├── script.js          # JavaScript functionality
-│   └── styles.css         # CSS styles
-├── requirements.txt       # Python dependencies
-├── env.example           # Environment variables example
-└── README.md            # This file
+Project_D7/
+├── backend/
+│   ├── services/
+│   │   ├── ollama_integration.py    # AI analysis with Ollama
+│   │   ├── sentiment.py             # Basic sentiment analysis
+│   │   ├── translation.py           # Text translation
+│   │   ├── language.py              # Language detection
+│   │   └── chunking.py              # Text chunking for large files
+│   ├── uploads/                     # Temporary file uploads
+│   └── app.py                       # Main Flask application
+├── frontend/
+│   ├── index.html                   # Main web interface
+│   ├── script.js                    # Frontend logic
+│   └── styles.css                   # UI styling
+├── requirements.txt                 # Python dependencies
+└── README.md                        # This file
 ```
 
 ## 🔧 Configuration
 
-Environment variables (in `.env` file):
+The application is pre-configured with Ollama API credentials. If you need to modify the configuration:
 
-```bash
-# Required
-GOOGLE_API_KEY=your-google-ai-api-key-here
+1. **Ollama Settings** (in `backend/services/ollama_integration.py`):
+   - Model: `gpt-oss:120b`
+   - Host: `https://ollama.com`
+   - API Key: Pre-configured
 
-# Optional
-FLASK_ENV=development
-SECRET_KEY=your-secret-key
-MAX_CONTENT_LENGTH=10485760
-```
+2. **Server Settings** (in `backend/app.py`):
+   - Port: 3000 (configurable via PORT environment variable)
+   - Upload limit: 10MB
+   - Supported formats: CSV, TXT
 
-## 🛠️ Troubleshooting
+## 📈 Usage
+
+### File Upload Analysis
+1. Navigate to the web interface
+2. Drag & drop or select a CSV/TXT file with reviews
+3. Wait for processing (supports files up to 10MB)
+4. Explore results across four tabs:
+   - **Overview**: Key statistics and AI insights
+   - **Sentiment**: Distribution charts and trends
+   - **Topics**: AI-identified themes and topic cloud
+   - **Raw Data**: Detailed table with search and export
+
+### Manual Review Analysis
+1. Switch to "Text Input" tab
+2. Enter a single review text
+3. Select language (optional)
+4. Add rating (optional)
+5. Click "Analyze Reviews" for instant results
+
+## 🌐 API Endpoints
+
+- `GET /api/health` - Health check
+- `POST /api/analyze` - Single text analysis
+- `POST /api/upload` - File upload and batch processing
+- `POST /api/translate` - Text translation
+
+## 🚀 Deployment Guide
+
+### Local Development
+Already covered in Quick Start section above.
+
+### Production Deployment
+
+#### Option 1: Traditional Server (Ubuntu/CentOS)
+
+1. **Server Setup**:
+   ```bash
+   # Update system
+   sudo apt update && sudo apt upgrade -y
+   
+   # Install Python and pip
+   sudo apt install python3 python3-pip python3-venv nginx -y
+   ```
+
+2. **Deploy Application**:
+   ```bash
+   # Clone to production directory
+   cd /var/www/
+   sudo git clone <repository-url> review-analyzer
+   cd review-analyzer
+   
+   # Set up Python environment
+   python3 -m venv env
+   source env/bin/activate
+   pip install -r requirements.txt
+   ```
+
+3. **Configure Gunicorn**:
+   ```bash
+   # Install gunicorn
+   pip install gunicorn
+   
+   # Test the application
+   gunicorn --bind 0.0.0.0:8000 backend.app:app
+   ```
+
+4. **Create Systemd Service** (`/etc/systemd/system/review-analyzer.service`):
+   ```ini
+   [Unit]
+   Description=Review Analyzer Flask App
+   After=network.target
+   
+   [Service]
+   User=www-data
+   Group=www-data
+   WorkingDirectory=/var/www/review-analyzer
+   Environment="PATH=/var/www/review-analyzer/env/bin"
+   ExecStart=/var/www/review-analyzer/env/bin/gunicorn --workers 3 --bind 0.0.0.0:8000 backend.app:app
+   Restart=always
+   
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+5. **Configure Nginx** (`/etc/nginx/sites-available/review-analyzer`):
+   ```nginx
+   server {
+       listen 80;
+       server_name your-domain.com;
+   
+       location / {
+           proxy_pass http://127.0.0.1:8000;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           
+           # Handle large file uploads
+           client_max_body_size 10M;
+       }
+   }
+   ```
+
+6. **Start Services**:
+   ```bash
+   sudo systemctl enable review-analyzer
+   sudo systemctl start review-analyzer
+   sudo systemctl enable nginx
+   sudo systemctl start nginx
+   sudo ln -s /etc/nginx/sites-available/review-analyzer /etc/nginx/sites-enabled
+   sudo systemctl reload nginx
+   ```
+
+#### Option 2: Docker Deployment
+
+1. **Create Dockerfile**:
+   ```dockerfile
+   FROM python:3.9-slim
+   
+   WORKDIR /app
+   COPY requirements.txt .
+   RUN pip install -r requirements.txt
+   
+   COPY . .
+   
+   EXPOSE 3000
+   CMD ["python", "backend/app.py"]
+   ```
+
+2. **Build and Run**:
+   ```bash
+   docker build -t review-analyzer .
+   docker run -p 3000:3000 review-analyzer
+   ```
+
+#### Option 3: Cloud Platforms
+
+**Heroku**:
+1. Create `Procfile`: `web: gunicorn backend.app:app --bind 0.0.0.0:$PORT`
+2. Deploy: `git push heroku main`
+
+**DigitalOcean App Platform**:
+1. Connect GitHub repository
+2. Set build command: `pip install -r requirements.txt`
+3. Set run command: `python backend/app.py`
+
+**AWS EC2**:
+Follow the traditional server setup but on an EC2 instance.
+
+## 🔐 Security Considerations
+
+- API keys are embedded in code (consider environment variables for production)
+- File uploads are limited to 10MB
+- CORS is enabled for all origins (restrict in production)
+- No authentication implemented (add as needed)
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **"API key not configured" error**
-   - Make sure you've created a `.env` file with your Google AI API key
-   - Verify the key is correct and has the right permissions
+1. **Ollama API 404 Error**: 
+   - Check if model name `gpt-oss:120b` is correct
+   - Verify API credentials are valid
 
-2. **Import errors**
-   - Make sure you're running from the `backend/` directory
-   - Verify all dependencies are installed: `pip install -r requirements.txt`
+2. **File Upload Timeout**:
+   - Increase timeout in frontend (currently 15 minutes)
+   - Process smaller files or optimize chunking
 
-3. **Port already in use**
-   - The app runs on port 3000 by default (to avoid macOS AirPlay conflicts)
-   - Stop other applications using port 3000, or change the port in `app.py`
+3. **Memory Issues with Large Files**:
+   - Reduce chunk size in `backend/services/chunking.py`
+   - Increase server memory allocation
 
-4. **File upload not working**
-   - Make sure the `uploads/` directory exists in the backend folder
-   - Check file size limits (10MB max by default)
+## 📊 Performance Notes
 
-### Getting Help
+- Processes ~130 review chunks in approximately 2-4 minutes
+- Supports concurrent analysis of multiple chunks
+- Memory usage scales with file size
+- AI analysis adds ~1-2 seconds per chunk
 
-If you encounter issues:
+## 🤝 Contributing
 
-1. Check the console output for error messages
-2. Verify your API key is working by testing a simple request
-3. Make sure all dependencies are installed correctly
-4. Check that you're running Python 3.8 or higher
-
-## 📝 Supported Languages
-
-**Translation:** English, Spanish, French, German, Italian, Portuguese, Chinese, Japanese, Korean, Arabic, Hindi
-
-**Sentiment Analysis:** Works with any language, but accuracy is best with English
-
-## 🚀 Production Deployment
-
-For production deployment:
-
-1. Set `FLASK_ENV=production` in your environment
-2. Use a production WSGI server like Gunicorn:
-   ```bash
-   pip install gunicorn
-   gunicorn --bind 0.0.0.0:5000 app:app
-   ```
-3. Set up proper environment variables
-4. Configure a reverse proxy (nginx, Apache)
-5. Set up SSL/HTTPS
+1. Fork the repository
+2. Create a feature branch
+3. Make changes and test thoroughly
+4. Submit a pull request
 
 ## 📄 License
 
-This project is for educational and demonstration purposes.
+This project is licensed under the MIT License.
 
 ---
 
-**🎉 Enjoy analyzing sentiment and translating text with AI!**
+**Built with ❤️ using Flask, Ollama AI, and modern web technologies.**

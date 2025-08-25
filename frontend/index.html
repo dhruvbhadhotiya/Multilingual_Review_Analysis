@@ -17,15 +17,60 @@
 
         <main>
             <div class="upload-section">
-                <div class="upload-container" id="dropZone">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <h3>Drag & Drop your file here</h3>
-                    <p>or</p>
-                    <label for="fileInput" class="browse-btn">Browse Files</label>
-                    <input type="file" id="fileInput" accept=".csv,.txt" style="display: none;">
-                    <p class="file-types">Supported formats: .csv, .txt (Max 10MB)</p>
+                <div class="input-method-tabs">
+                    <button class="method-tab active" id="fileUploadTab">File Upload</button>
+                    <button class="method-tab" id="textInputTab">Test Review</button>
                 </div>
-                <div id="fileInfo" class="file-info"></div>
+                
+                <div class="method-content active" id="fileUploadContent">
+                    <div class="upload-container" id="dropZone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <h3>Drag & Drop your file here</h3>
+                        <p>or</p>
+                        <label for="fileInput" class="browse-btn">Browse Files</label>
+                        <input type="file" id="fileInput" accept=".csv,.txt" style="display: none;">
+                        <p class="file-types">Supported formats: .csv, .txt (Max 10MB)</p>
+                    </div>
+                    <div id="fileInfo" class="file-info"></div>
+                </div>
+                
+                <div class="method-content" id="textInputContent">
+                    <div class="text-input-container">
+                        <h3>Test with Your Own Review</h3>
+                        <textarea id="manualReviewInput" placeholder="Enter a review to analyze... (e.g., 'This product is amazing! Great quality and fast delivery.')" rows="4"></textarea>
+                        <div class="input-options">
+                            <div class="option-group">
+                                <label for="manualLanguage">Language:</label>
+                                <select id="manualLanguage">
+                                    <option value="auto">Auto-detect</option>
+                                    <option value="en">English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="fr">French</option>
+                                    <option value="de">German</option>
+                                    <option value="it">Italian</option>
+                                    <option value="pt">Portuguese</option>
+                                    <option value="ru">Russian</option>
+                                    <option value="zh">Chinese</option>
+                                    <option value="ja">Japanese</option>
+                                    <option value="ko">Korean</option>
+                                    <option value="ar">Arabic</option>
+                                    <option value="nl">Dutch</option>
+                                </select>
+                            </div>
+                            <div class="option-group">
+                                <label for="manualRating">Rating (optional):</label>
+                                <select id="manualRating">
+                                    <option value="">No rating</option>
+                                    <option value="1">1 Star</option>
+                                    <option value="2">2 Stars</option>
+                                    <option value="3">3 Stars</option>
+                                    <option value="4">4 Stars</option>
+                                    <option value="5">5 Stars</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="analysis-options">
@@ -134,7 +179,9 @@
                                 <table id="reviewsTable">
                                     <thead>
                                         <tr>
-                                            <th>Review</th>
+                                            <th>Original Review</th>
+                                            <th>Translated Text</th>
+                                            <th>Language</th>
                                             <th>Sentiment</th>
                                             <th>Rating</th>
                                             <th>Date</th>
@@ -158,7 +205,21 @@
         </main>
 
         <footer>
-            <p> 2025 Review Analysis with RAG | Powered by AI</p>
+            <div class="footer-content">
+                <div class="footer-main">
+                    <p>© 2025 Multilingual Review Analysis Platform </p>
+                </div>
+                <div class="footer-team">
+                    <p class="team-credit">
+                        <span class="powered-by">Powered by</span> 
+                        <span class="team-name">Team 8</span> 
+                        <span class="divider">•</span>
+                        <span class="lead-by">Lead by</span> 
+                        <span class="leader-name">Deepti</span>
+                        <span class="sparkle">✨</span>
+                    </p>
+                </div>
+            </div>
         </footer>
     </div>
 

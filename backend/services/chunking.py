@@ -147,51 +147,52 @@ def process_text_file(file_path: Union[str, Path],
 def process_csv_file(file_path: Union[str, Path],
                     chunk_size: int = 1000,
                     overlap: int = 100) -> List[Dict[str, Any]]:
-    """Process a CSV file into chunks, preserving row structure."""
+    """Process a CSV file into chunks, preserving row structure and extracting review data."""
     try:
         chunks = []
-        current_chunk = []
-        current_length = 0
-        chunk_id = 0
         
         with open(file_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
+            headers = list(reader.fieldnames) if reader.fieldnames else []
             
+            # Process each row as a separate review
             for i, row in enumerate(reader):
-                # Convert row to a readable string
-                row_text = ', '.join(f"{k}: {v}" for k, v in row.items())
+                # Extract review text - check multiple possible column names
+                review_text = (row.get('text') or row.get('review') or 
+                              row.get('comment') or row.get('content') or '')
                 
-                # If adding this row would exceed chunk size, finalize current chunk
-                if current_length + len(row_text) > chunk_size and current_chunk:
-                    chunk_content = '\n'.join(current_chunk)
-                    chunks.append({
-                        'text': chunk_content,
-                        'chunk_id': chunk_id,
-                        'start_row': i - len(current_chunk),
-                        'end_row': i - 1,
-                        'is_last': False,
-                        'format': 'csv',
-                        'headers': list(reader.fieldnames) if reader.fieldnames else []
-                    })
-                    chunk_id += 1
-                    current_chunk = [row_text]
-                    current_length = len(row_text)
-                else:
-                    current_chunk.append(row_text)
-                    current_length += len(row_text) + 1  # +1 for newline
+                if not review_text or not review_text.strip():
+                    continue  # Skip empty reviews
+                
+                # Extract additional metadata
+                rating = None
+                if row.get('rating'):
+                    try:
+                        rating = float(row.get('rating'))
+                    except (ValueError, TypeError):
+                        rating = None
+                
+                date = row.get('date', '')
+                language = row.get('language', '')
+                
+                # Create individual chunk for each review
+                chunks.append({
+                    'text': review_text.strip(),
+                    'chunk_id': i,
+                    'start_row': i,
+                    'end_row': i,
+                    'is_last': False,  # Will be updated later
+                    'format': 'csv',
+                    'headers': headers,
+                    'rating': rating,
+                    'date': date,
+                    'language': language,
+                    'row_data': row  # Keep original row data for reference
+                })
         
-        # Add the last chunk if not empty
-        if current_chunk:
-            chunk_content = '\n'.join(current_chunk)
-            chunks.append({
-                'text': chunk_content,
-                'chunk_id': chunk_id,
-                'start_row': (i + 1) - len(current_chunk) if 'i' in locals() else 0,
-                'end_row': i if 'i' in locals() else len(current_chunk) - 1,
-                'is_last': True,
-                'format': 'csv',
-                'headers': list(reader.fieldnames) if 'reader' in locals() and reader.fieldnames else []
-            })
+        # Update the last chunk
+        if chunks:
+            chunks[-1]['is_last'] = True
         
         return chunks
         

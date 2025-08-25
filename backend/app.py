@@ -40,7 +40,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 from services.sentiment import analyze_sentiment
 from services.language import detect_language
 from services.chunking import process_file, chunk_text
-from services.gemini_integration import analyze_with_gemini
+from services.ollama_integration import analyze_with_ollama
 from services.translation import translate_text
 
 
@@ -104,15 +104,15 @@ def analyze_text():
         # Analyze sentiment
         sentiment_result = analyze_sentiment(text, language)
         
-        # Get additional analysis from Gemini
-        gemini_analysis = analyze_with_gemini(text, analysis_type='sentiment')
+        # Get additional analysis from Ollama
+        ollama_analysis = analyze_with_ollama(text, analysis_type='sentiment')
         
         return jsonify({
             'text': text,
             'language': language,
             'sentiment': sentiment_result.get('sentiment'),
             'score': sentiment_result.get('score'),
-            'analysis': gemini_analysis
+            'analysis': ollama_analysis
         }), 200
         
     except Exception as e:
@@ -203,17 +203,24 @@ def upload_file():
                         continue  # Skip empty chunks
                     
                     # STEP 3: Check for language (English or not)
-                    detected_language = detect_language(chunk_text)
-                    logger.info(f'Chunk {i+1} detected language: {detected_language}')
+                    # Use language from CSV if available, otherwise detect
+                    detected_language = chunk.get('language', '').lower()
+                    if not detected_language or detected_language == 'auto':
+                        detected_language = detect_language(chunk_text)
+                    logger.info(f'Chunk {i+1} language: {detected_language}')
                     
                     # STEP 4: If not English, translate to English
                     original_text = chunk_text
+                    translated_text = chunk_text
+                    was_translated = False
+                    
                     if detected_language != 'en':
                         logger.info(f'Translating chunk {i+1} from {detected_language} to English')
                         try:
                             translation_result = translate_text(chunk_text, target_lang='en', source_lang=detected_language)
                             if 'error' not in translation_result:
-                                chunk_text = translation_result['translated_text']
+                                translated_text = translation_result['translated_text']
+                                was_translated = True
                                 logger.info(f'Translation successful for chunk {i+1}')
                             else:
                                 logger.warning(f'Translation failed for chunk {i+1}, using original text')
@@ -224,20 +231,22 @@ def upload_file():
                     logger.info(f'Analyzing sentiment for chunk {i+1}')
                     
                     # Basic sentiment analysis (fast and reliable)
-                    sentiment_result = analyze_sentiment(chunk_text, 'en')
+                    sentiment_result = analyze_sentiment(translated_text, 'en')
                     
                     # Combine results (no per-chunk Gemini analysis)
                     chunk_result = {
                         'chunk_id': chunk['chunk_id'],
                         'original_text': original_text,
-                        'processed_text': chunk_text,
+                        'processed_text': translated_text,
                         'detected_language': detected_language,
-                        'was_translated': detected_language != 'en',
+                        'was_translated': was_translated,
                         'sentiment': sentiment_result.get('sentiment'),
                         'sentiment_score': sentiment_result.get('score'),
                         'polarity': sentiment_result.get('polarity'),
                         'subjectivity': sentiment_result.get('subjectivity'),
                         'confidence': sentiment_result.get('confidence'),
+                        'rating': chunk.get('rating'),
+                        'date': chunk.get('date'),
                         'analysis': sentiment_result  # For backward compatibility
                     }
                     
@@ -349,10 +358,10 @@ def generate_summary(analysis_results, filename="uploaded_file"):
     else:
         insights.append("No specific topics identified")
     
-    # Generate Gemini insights for the overall summary
-    gemini_insights = {}
+    # Generate Ollama insights for the overall summary
+    ollama_insights = {}
     try:
-        # Create a sample of reviews for Gemini analysis
+        # Create a sample of reviews for Ollama analysis
         sample_reviews = []
         step = max(1, total_chunks // 10)  # Take up to 10 representative samples
         for i in range(0, total_chunks, step):
@@ -361,23 +370,23 @@ def generate_summary(analysis_results, filename="uploaded_file"):
         
         sample_text = "\n\n".join(sample_reviews)
         
-        logger.info("Generating Gemini insights for overall summary")
-        gemini_result = analyze_with_gemini(
+        logger.info("Generating Ollama insights for overall summary")
+        ollama_result = analyze_with_ollama(
             sample_text,
             analysis_type='summary_analysis',
             chunk_index=None,
             total_chunks=total_chunks
         )
         
-        if 'error' not in gemini_result:
-            gemini_insights = gemini_result
-            if gemini_result.get('key_insights'):
-                insights.extend(gemini_result['key_insights'][:3])  # Add top 3 Gemini insights
+        if 'error' not in ollama_result:
+            ollama_insights = ollama_result
+            if ollama_result.get('key_insights'):
+                insights.extend(ollama_result['key_insights'][:3])  # Add top 3 Ollama insights
         else:
-            logger.info("Gemini summary analysis failed, using basic insights only")
+            logger.info("Ollama summary analysis failed, using basic insights only")
             
     except Exception as e:
-        logger.info(f"Gemini summary analysis error: {str(e)}")
+        logger.info(f"Ollama summary analysis error: {str(e)}")
     
     return {
         'total_reviews_analyzed': total_chunks,
@@ -392,14 +401,14 @@ def generate_summary(analysis_results, filename="uploaded_file"):
         'languages_detected': languages_detected,
         'translations_performed': translations_performed,
         'key_insights': insights,
-        'gemini_insights': gemini_insights,
+        'ollama_insights': ollama_insights,
         'workflow_steps_completed': [
             '✓ File uploaded and chunked',
             '✓ Language detection performed',
             f'✓ {translations_performed} translations completed' if translations_performed > 0 else '✓ No translations needed',
             '✓ Sentiment analysis completed',
             '✓ Summary generated',
-            '✓ AI insights generated' if gemini_insights else '✓ Basic insights provided'
+            '✓ AI insights generated' if ollama_insights else '✓ Basic insights provided'
         ]
     }
 

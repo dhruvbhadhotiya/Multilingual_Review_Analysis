@@ -1,6 +1,6 @@
 # RAG Review Analysis Backend
 
-A Flask-based backend service for analyzing reviews using Retrieval-Augmented Generation (RAG) with Google's Gemini API.
+A Flask-based backend service for analyzing multilingual reviews using AI-powered analysis with Ollama's gpt-oss:120b model.
 
 ## Features
 
